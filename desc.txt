@@ -1,0 +1,87 @@
+Your protocol should allow a new group to be established and ensure that it does not interact with an existing group 
+(guarantee that a new group ID is not the same as an existing group ID). 
+
+Any user should be able to post a message to the public bulletin board and to any private bulletin board for which they 
+know the group ID. 
+
+A user shall be able to request to see all messages from a group (group being either the public or the private bulletin board), 
+all new messages posted to a group, or specific messages from a group. 
+
+Messages should have a subject line and a user should be able to request a list of only the subject lines posted to a 
+bulletin board. Messages may be of arbitrary length. 
+
+Your protocol should provide reliable transfer of information between the client and the server. 
+This can be achieved either in the protocol you design or by your choice of Transport protocol. 
+
+A user should also be able to retrieve the total number of messages on a bulletin board 
+and the total number of new messages on a bulletin board.
+
+Your protocol should also allow the user to 
+remove messages that they posted or groups that they created. No user should be able to remove a message they did not 
+post to the bulletin board or a group they did not create. 
+------------------------------------------------------------------------------------------------------------------------------
+scratchpad
+
+
+------------------------------------------------------------------------------------------------------------------------------
+Protocol: Stateless (probably for the best)
+A new message, in the context of a user's ID, must satisfy ALL of the following properties:
+	Was created on a board after the user's most recent 'All' query for the board
+	Does not exist in the board's uID -> new Message mapping
+	
+OR
+
+The user does not exist in the board's uid -> new Message mapping, in which case all messages are new
+	
+The public board has id '0'
+[err] - A one-byte code:
+	00 - Command String Unrecognized
+	01 - Board Does Not Exist
+	02 - One or more Message(s) Do(es) Not Exist on Board
+	03 - User does not have permission to execute action
+	10 - Result empty
+	C4 - Malformed Command
+	
+ 
+Users:   A list of one or more User
+User:    A user ID
+
+Boards:  A list of one or more Board.
+Board:   A list of one or more Message, a board ID, a user ID (the board's creator), a map(user ID  => unread msgs)
+
+Message: A message ID, a user ID (the message creator), a unix timestamp (creation time), a subject line, a text_ms
+text_ms: A string of characters
+
+The program state consists of
+	Boards, with a board of id '0' added
+
+Actions a user can take:
+
+#information
+GET_M_CT FE [bID] FF                             -> [len] FF | NO [err] FF
+GETNEWCT FE [bID] FE [uID] FF                    -> [len] FF | NO [err] FF
+
+#message input
+POST_MSG FE [bID] FE [uID] FE [subject] FE [msg] -> OK FF | NO [err] FF
+DELT_MSG FE [bID] FE [uID] FE [mID]              -> OK FF | NO [err] FF
+
+#message output
+GET_MSGS FE [bID] FE [mIDs]* FE [sbjs] FE [uID] FF 
+[mIDs] -> [mID] (FD [mID])*
+												 -> [number] FE [messages] FE FF
+												  | NO [err] FF
+									  [messages] -> [message] (FD [message])*
+									  [message]  -> [mID] FC [uID] FC [timestamp] FC [subject] FC [text_ms]
+                                                   
+#boards
+CREATE_B [bID] [uID]                             -> OK FF | NO [err] FF
+DELETE_B [bID] [uID]                             -> OK FF | NO [err] FF
+
+any numeric field possibly more than 1 byte must be cast down to integer, 
+and encoded in the ACD format (ASCII-CODED-DECIMAL)
+[timestamp] [len] [bID] [uID] [mID]
+
+
+
+
+
