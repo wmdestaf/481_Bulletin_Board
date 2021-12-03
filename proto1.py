@@ -215,16 +215,3 @@ while True: #Interactive mode
         print(delete_b(board, user))
     elif i == 8:
         break
-
-'''
-WHERE AM I NOW?
-
-get messages *gives* messages but does not *clear* them from the 'unread' list.
-'''
-
-
-
-
-
-
-
