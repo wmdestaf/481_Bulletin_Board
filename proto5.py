@@ -1,6 +1,11 @@
+#import pdb; pdb.set_trace()
+
 import re
 import signal
 import enum 
+
+#TODO: Interactive handle of returns
+#Future me, good luck on parsing out messages!
 
 FIELDSEP = 0xFC.to_bytes(1, 'big')
 ELEM_SEP = 0xFD.to_bytes(1, 'big')
@@ -13,39 +18,36 @@ MSGS_DNE = 0x02.to_bytes(1, 'big')
 UNOPERMS = 0x03.to_bytes(1, 'big')
 RESEMPTY = 0x10.to_bytes(1, 'big')
 INVALFMT = 0xC4.to_bytes(1, 'big')
-NO  = 'ERRORENC'.encode(encoding='ASCII')
+OK  = 'OK'.encode(encoding='ASCII')
+NO  = 'NO'.encode(encoding='ASCII')
 
 OPCODE_LEN = 8
 
 class ARG_TYPE(enum.Enum):
+    byte       = enum.auto()
     integer    = enum.auto()
     string     = enum.auto()
     boolean    = enum.auto()
     descend    = enum.auto()
     repeat     = enum.auto()
     
-commands = ("GET_M_CT","GETNEWCT","POST_MSG","DELT_MSG","GET_MSGS","CREATE_B","DELETE_B")
+commands = ("GET_M_CT","GETNEWCT","POST_MSG","DELT_MSG","GET_MSGS","CREATE_B","DELETE_B","ERRORENC")
 expected_args = {
     #BOARD ID
     "GET_M_CT": (ARG_TYPE.integer,),
     
     #BOARD ID, USER ID
-    "GETNEWCT": (ARG_TYPE.integer, ARG_TYPE.integer),
+    "GETNEWCT": (ARG_TYPE.integer,),
+
+    "POST_MSG": (),
+    "DELT_MSG": (),
     
-    #BOARD ID, USER ID, SUBJECT, MESSAGE
-    "POST_MSG": (ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.string, ARG_TYPE.string),
+    "GET_MSGS": ((ARG_TYPE.descend, (ARG_TYPE.repeat, (ARG_TYPE.descend, (ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.string, ARG_TYPE.string)),)),),
+    "CREATE_B": (),
+    "DELETE_B": (),
     
-    #BOARD ID, USER ID, MESSAGE ID
-    "DELT_MSG": (ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.integer),
-    
-    #BOARD ID, USER ID, MSG_IDS, 
-    "GET_MSGS": (ARG_TYPE.integer, ARG_TYPE.integer, (ARG_TYPE.descend, (ARG_TYPE.repeat, ARG_TYPE.integer)), ARG_TYPE.boolean, ARG_TYPE.boolean),
-    
-    #BOARD ID, USER ID
-    "CREATE_B": (ARG_TYPE.integer, ARG_TYPE.integer),
-    
-    #BOARD ID, USER ID
-    "DELETE_B": (ARG_TYPE.integer, ARG_TYPE.integer)
+    #ERROR CODE
+    "ERRORENC": (ARG_TYPE.byte,)
 }
 
 def c(byte):
@@ -54,21 +56,21 @@ def c(byte):
 class ParseError(Exception):
     pass
 
-def parse_asc_encoded_boolean(raw):
-    if len(raw) != 1 or (raw != '0' and raw != '1'):
-        raise ParseError
-    return True if raw == '1' else False
-
 def parse_asc_encoded_int(raw):
     if any(ord(x) < ord('0') or ord(x) > ord('9') for x in raw):
         raise ParseError
     return int(raw)
 
+def parse_asc_encoded_boolean(raw):
+    if len(raw) != 1 or (raw != '0' and raw != '1'):
+        raise ParseError
+    return True if raw == '1' else False
+
 def parse_string(raw):
     if not raw:
         raise ParseError
     return raw
-
+    
 def parse_byte(raw):
     if len(raw) != 1:
         raise ParseError
@@ -101,40 +103,33 @@ def recursive_descent(expected_args, given_args, parsed_args, depth):
             parsed_args.append(parse_string(given_args[idx]))
         elif arg_type == ARG_TYPE.byte:
             parsed_args.append(parse_byte(given_args[idx - offset]))
+        
+        
 
 def parse(msg):
-    if len(msg) < 10:
-        return NO + INVALFMT + END
-    elif msg[-1] != c(END) or msg[OPCODE_LEN] != c(SEP):         
-        return NO + INVALFMT + END
-    elif msg[:OPCODE_LEN] not in commands:
-        return NO + UNKNWNOP + END
+    if len(msg) < 10 or msg[-1] != c(END) or msg[:OPCODE_LEN] not in commands or msg[OPCODE_LEN] != c(SEP):
+        return -1
         
     op    = msg[:OPCODE_LEN]
     given = msg[OPCODE_LEN + 1:-1].split(c(SEP)) #split out into args
+    if not given[0]:
+        given = []
 
-    expected = expected_args[op]
-    if len(expected) != len(given):
-        return -1
+    if len(expected_args[op]) != len(given):
+        return -2
         
     parsed_args = []
     try:
         recursive_descent(expected_args[op], given, parsed_args, 0)
     except ParseError:
-        return NO + INVALFMT + END 
+        return -3
         
     print(op, parsed_args)    
-    return op.encode(encoding='ascii') + SEP + END
+    return 0
     
 
 signal.signal(signal.SIGINT, lambda *a: quit())
 while True:
     msg = input("MSG: ")
     msg = re.sub(r'\[(F[C-F])\]', lambda hx: chr(int(hx.group(1),16)), msg)
-    ret = ''.join([chr(c) for c in parse(msg)])
-    for i in range(0xFC, 0x100):
-        ret = ret.replace(chr(i), '[' + hex(i)[2:] + ']')
-    for i in range(0x0, 0x11):
-        ret = ret.replace(chr(i), '[' + hex(i)[2:] + ']')
-    ret = ret.replace(chr(0xC4), '[' + hex(0xC4)[2:] + ']')
-    print(ret)
+    print(parse(msg))

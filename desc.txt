@@ -58,30 +58,35 @@ The program state consists of
 Actions a user can take:
 
 #information
-GET_M_CT FE [bID] FF                             -> [len] FF | NO [err] FF
-GETNEWCT FE [bID] FE [uID] FF                    -> [len] FF | NO [err] FF
+GET_M_CT FE [bID] FF                             -> GET_M_CT FE [len] FF | ERRORENC [err] FF
+GETNEWCT FE [bID] FE [uID] FF                    -> GETNEWCT FE [len] FF | ERRORENC [err] FF
 
 #message input
-POST_MSG FE [bID] FE [uID] FE [subject] FE [msg] -> OK FF | NO [err] FF
-DELT_MSG FE [bID] FE [uID] FE [mID]              -> OK FF | NO [err] FF
+POST_MSG FE [bID] FE [uID] FE [subject] FE [msg] -> POST_MSG FE FF | ERRORENC [err] FF
+DELT_MSG FE [bID] FE [uID] FE [mID]              -> DELT_MSG FE FF | ERRORENC [err] FF
 
 #message output
-GET_MSGS FE [bID] FE [mIDs]* FE [sbjs] FE [uID] FF 
+GET_MSGS FE [bID] FE [uID] FE [mIDs]* FE [only_sbjs] FE [only_new] FF 
 [mIDs] -> [mID] (FD [mID])*
-												 -> [number] FE [messages] FE FF
-												  | NO [err] FF
+
+GET_MSGS[FE]1[FE]2[FE]3[FD]4[FD]5[FD]6[FE]1[FE]0[FF]
+
+												 -> GET_MSGS FE [messages] FF
+												  | ERRORENC [err] FF
 									  [messages] -> [message] (FD [message])*
 									  [message]  -> [mID] FC [uID] FC [timestamp] FC [subject] FC [text_ms]
                                                    
+												   GET_MSGS[FE]1[FC]1[FC]s_one[FC]b_one[FD]2[FC]2[FC]s_two[FC]b_two[FF]
+												   
 #boards
-CREATE_B [bID] [uID]                             -> OK FF | NO [err] FF
-DELETE_B [bID] [uID]                             -> OK FF | NO [err] FF
+CREATE_B [bID] [uID]                             -> CREATE_B FE FF| ERRORENC FE [err] FF
+DELETE_B [bID] [uID]                             -> DELETE_B FE FF| ERRORENC FE [err] FF
 
 any numeric field possibly more than 1 byte must be cast down to integer, 
 and encoded in the ACD format (ASCII-CODED-DECIMAL)
 [timestamp] [len] [bID] [uID] [mID]
-
-
+a bool-type is either 00 (false) or 01 (true)
+[only_new] [only_subjs]
 
 
 
