@@ -24,12 +24,12 @@ NO  = 'NO'.encode(encoding='ASCII')
 OPCODE_LEN = 8
 
 class ARG_TYPE(enum.Enum):
-    byte       = enum.auto()
-    integer    = enum.auto()
-    string     = enum.auto()
-    boolean    = enum.auto()
-    descend    = enum.auto()
-    repeat     = enum.auto()
+    byte       = enum.auto() #A single byte
+    integer    = enum.auto() #An ASCII-encoded integer of any length
+    string     = enum.auto() #A sequence of bytes, of any length
+    boolean    = enum.auto() #A single byte, of value '0' or '1' TODO: CLARIFY
+    descend    = enum.auto() #Parse the following argument as 1 argument, with a reduced seperator
+    repeat     = enum.auto() #A sequence of (the following argument), of any length
     
 commands = ("GET_M_CT","GETNEWCT","POST_MSG","DELT_MSG","GET_MSGS","CREATE_B","DELETE_B","ERRORENC")
 expected_args = {
