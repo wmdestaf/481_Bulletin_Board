@@ -1,5 +1,6 @@
 from socket import AF_INET, SOCK_STREAM
 from threading import Thread, Semaphore
+from proto8_constants import *
 import re
 
 def str_to_bytes(string):
@@ -12,7 +13,7 @@ def zip_seperators(unformatted):
     return re.sub(r'\[(F[C-F])\]', lambda hx: chr(int(hx.group(1),16)), unformatted)
 
 def unzip_seperators(formatted):
-    for i in range(0xFC, 0x100):
+    for i in range(FIELDSEP, END + 1): #Hardcoded for protocol, but could be easily changed.
         formatted = formatted.replace(chr(i), '[' + hex(i)[2:] + ']')
     return formatted
 
@@ -20,14 +21,13 @@ def SBBP_Frame_Extractor0(ref):
     buf = bytes(0)
     while True:
         frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
-        #print_recv_frame_debug(frame)
-        
+
         if not len(frame): #socket died
             print("socket died... :(")
             return
 
-        if 0xFF in frame: #hit the terminator
-            points = [0] + [idx + 1 for idx, val in enumerate(frame) if val == 0xFF] + [len(frame)]
+        if END in frame: #hit the terminator
+            points = [0] + [idx + 1 for idx, val in enumerate(frame) if val == END] + [len(frame)]
             splits = [frame[points[idx]:points[idx+1]] for idx in range(len(points) - 1)]
             
             #finish the current message
@@ -39,7 +39,7 @@ def SBBP_Frame_Extractor0(ref):
             
             #and if there are any other messages...
             for other_msg in splits[1:]:
-                if other_msg and 0xFF in other_msg:
+                if other_msg and END in other_msg:
                     other_msg = bytes_to_str(other_msg)
                     
                     #TODO: handle the message
