@@ -20,16 +20,17 @@ def on_recieve_frame(*args):
     #PARSE ARGS => OPCODE, ARGS
     parsed = SERVER_ARGPARSER.parse_message(frame)
     
-    if not isinstance(parsed, tuple):
+    if not isinstance(parsed, tuple): #Has returned an error code instead of arguments
         raw = str_to_bytes("ERRORENC") + BYTE_REPR(SEP) + BYTE_REPR(parsed) + BYTE_REPR(END)
     else:
         opcode = parsed[0]
         arguments = parsed[1]
+        
         #EXECUTE_ARGS => SUCCESS, RESPONSE_ARGUMENTS
-        response = EXECUTE_ARGS(opcode, arguments)
-        if not response[0]:
-            opcode = "ERRORENC"
-        print(response[0], opcode, response[1])
+        response = EXECUTE_ARGS_SERVER(opcode, arguments)
+        if not response[0]:     #Execute returned 'False'
+            opcode = "ERRORENC" #Instead of echoing the opcode, return the 'Error' opcode
+            response[1][0] = ASCII_REPR(response[1][0]) #Convert the error code
         raw = str_to_bytes(argjoin(opcode, response[1]))
         
     try:  

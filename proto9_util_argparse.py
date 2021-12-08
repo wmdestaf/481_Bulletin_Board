@@ -24,7 +24,7 @@ expected_args_client = {
     "DELT_MSG": (),
     
     #TODO: DESCRIBE
-    "GET_MSGS": ((ARG_TYPE.descend, (ARG_TYPE.repeat, (ARG_TYPE.descend, (ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.string, ARG_TYPE.string)),)),),
+    "GET_MSGS": (ARG_TYPE.boolean, (ARG_TYPE.descend, (ARG_TYPE.repeat, (ARG_TYPE.descend, (ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.integer, ARG_TYPE.string, ARG_TYPE.string)),)),),
     "CREATE_B": (),
     "DELETE_B": (),
     
@@ -120,6 +120,8 @@ def parse(msg, commands, expected_args):
     if not given[0]:
         given = []
 
+    #print("given:", given)
+
     if len(expected_args[op]) != len(given):
         return ARGCOUNT
         
@@ -165,5 +167,8 @@ def argjoin(opcode, arg_list):
                 argjoin0(arg, sep - 1)
                 string += ('' if idx == len(arg_list) - 1 else ASCII_REPR(sep))
                 
-    argjoin0(arg_list,SEP)
+    if not isinstance(arg_list, list):
+        string = force_str_repr(arg_list)
+    else:
+        argjoin0(arg_list,SEP)
     return opcode + ASCII_REPR(SEP) + string + ASCII_REPR(END)

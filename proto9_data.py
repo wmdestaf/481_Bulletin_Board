@@ -158,21 +158,19 @@ def get_msgs(b_id, u_id, m_ids, subjects_only=False, new_only=False):
                     board.msgs_map[u_id].remove(msg.m_id)
 
     if not subjects_only:
-        return (True,[[msg.m_id, msg.creator, msg.created, msg.subject, msg.text] for msg in msgs])
+        ret = [False,[[msg.m_id, msg.creator, msg.created, msg.subject, msg.text] for msg in msgs]]
     else:
-        return (True,[[msg.m_id, msg.creator, msg.created, msg.subject, "ignore"] for msg in msgs])
-    #strs = [time.asctime(time.localtime(msg.created)) + "\nNo.   " +
-    #        str(msg.m_id) + "\nsubj: " + msg.subject + ( ("\nmsg:  "+msg.text) if not subjects_only else "") for msg in board.messages]
-    #return "\n\n".join(strs)
+        ret = [True,[[msg.m_id, msg.creator, msg.created, msg.subject, "ignore"] for msg in msgs]]
+        
+    if not ret[1]:
+        return (False, [RESEMPTY])
+    else:
+        return (True, ret)
 ##################################################################################
         
 boards = [Board(0, -1)]
 
-'''
-    START HERE:
-    MAKE EXECUTE ARGS EXECUTE AND RETURN LIST
-'''
-def EXECUTE_ARGS(opcode, args):
+def EXECUTE_ARGS_SERVER(opcode, args):
     if opcode == "GET_M_CT":
         return get_m_ct(args[0])
     elif opcode == "GETNEWCT":
@@ -187,3 +185,45 @@ def EXECUTE_ARGS(opcode, args):
         return create_b(args[0], args[1])
     elif opcode == "DELETE_B":
         return delete_b(args[0], args[1])
+        
+def EXECUTE_ARGS_CLIENT(opcode, args):
+    if opcode == "GET_M_CT":
+        return "Messages on board: {:d}".format(args[0])
+    elif opcode == "GETNEWCT":
+        return "New messages on board: {:d}".format(args[0])
+    elif opcode == "POST_MSG":
+        return "Message posted successfully."
+    elif opcode == "DELT_MSG":
+        return "Message deleted successfully."
+    elif opcode == "GET_MSGS":
+        subjs_only = args[0]
+        msgs = args[1]
+        if not subjs_only:
+            return ("\n" + "#"*80 + "\n").join("No. {:d}\nBy: {:d}\nAt: {}\nSubject: {}\nMessage:\n{}".format(
+                                 msg[0], msg[1], time.asctime(time.localtime(msg[2])),
+                                 msg[3], msg[4]) for msg in msgs)
+        else:
+            return ("\n" + "#"*80 + "\n").join("{:60s} (No. {:d}, By: {:d})".format(msg[3], msg[0], msg[1]) for msg in msgs)
+    elif opcode == "CREATE_B":
+        return "Board created successfully."
+    elif opcode == "DELETE_B":
+        return "Board deleted successfully."
+    elif opcode == "ERRORENC":
+        err = ord(args[0])
+        if err in FAULT_CODES:
+            return "Error! Server responded with 0x{:x}".format(err)
+        else:
+            if err == BOARDDNE:
+                return "Specified board does not exist."
+            elif err == MSGS_DNE:
+                return "One or more of the specified message(s) do not exist."
+            elif err == UNOPERMS:
+                return "You do not have permission to do that!"
+            elif err == RESEMPTY:
+                return "Result is empty."
+            else:
+                return "Server responded with unexpected (impossible?) status of 0x{:x}".format(err)
+        return "Error: {:d}".format(ord(args[0]))
+    else:
+        return "Unknown Opcode: {}".format(opcode)
+

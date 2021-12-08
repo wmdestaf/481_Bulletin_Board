@@ -114,6 +114,7 @@ def parse(msg):
     if not given[0]:
         given = []
 
+    print(len(expected_args[op]), given, len(given))
     if len(expected_args[op]) != len(given):
         return -2
         
