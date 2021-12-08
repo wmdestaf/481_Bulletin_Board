@@ -26,14 +26,18 @@ def SBBP_Frame_Extractor0(ref):
             frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
         except ConnectionResetError:
             print("The connection was reset. {}".format(ref.addr))
+            ref.close()
             return
         except ConnectionAbortedError:
             print("You have forcibly closed the connection.")
+            ref.close()
             return
         except GENERIC_SOCKET_ERROR:
-            return #shhhhhhhhh
+            ref.mark_dead()
+            return
 
         if not len(frame): #socket died
+            ref.mark_dead()
             print("The connection was closed! {}".format(ref.addr))
             return
 
@@ -68,18 +72,20 @@ class SBBP_Frame_Extractor:
         self.fun     = fun
         self.bf_size = bf_size
         self.die_lk  = Semaphore(1)
+        self.dead    = False
         Thread(target=SBBP_Frame_Extractor0, args=(self,)).start() #recv thread
         
     def alive(self):
-        if not self.die_lk.acquire(blocking=False):
-            return False
-        self.die_lk.release()
-        return True
+        return not self.dead
+        
+    def mark_dead(self):
+        self.dead = True
         
     def close(self):
-        if not self.alive():
+        if not self.die_lk.acquire(blocking=False) and self.alive():
             return
             
         self.sock.shutdown(SHUT_RDWR)
         self.sock.close()
+        self.dead = True
         self.die_lk.release()

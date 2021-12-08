@@ -1,6 +1,7 @@
 from proto9_util_extractor import *
 from proto9_util_argparse  import *
 from proto9_data           import *
+from proto9_input import get_client_input, set_user
 import socket
 from socket import AF_INET, SOCK_STREAM
 from socket import error as GENERIC_SOCKET_ERROR
@@ -10,7 +11,7 @@ import time
 import signal
 
 serverName = 'localhost'
-serverPort = 12000
+serverPort = 13037
 
 try:
     clientSocket = socket.socket(AF_INET, SOCK_STREAM)
@@ -21,7 +22,7 @@ except GENERIC_SOCKET_ERROR as e:
 try:
     clientSocket.connect((serverName,serverPort))
 except GENERIC_SOCKET_ERROR as e:
-    print("Could not connect to servr -",e)
+    print("Could not connect to server -",e)
     quit(1)
 
 mutex = Semaphore(1)
@@ -53,22 +54,30 @@ def on_exit(*args):
     quit()
 signal.signal(signal.SIGINT, on_exit)
 
+#main processing loop
+set_user("What is your User ID?")
 while True:
-    msg = input("MSG: ")
 
-    if not msg:
+    client_io_lock.acquire()
+
+    try:
+        opcode, args = get_client_input()
+    except TypeError: #returned 'None'
         on_exit()
         
+    raw = str_to_bytes(argjoin(opcode, args))
+
     try:
-        clientSocket.sendall(str_to_bytes(zip_seperators(msg))) #TODO: PROTECT
+        clientSocket.sendall(raw)
     except GENERIC_SOCKET_ERROR as e:
         print("Error sending message:",e)
         on_exit()
     
-    client_io_lock.acquire()
+    
     
 '''
     TODO: 
     client send like a human being
     lock access to board with RWSEM
+    on input, specify user ID at logon and do not permit change
 '''

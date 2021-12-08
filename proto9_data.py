@@ -107,6 +107,8 @@ def delt_msg(b_id, u_id, m_id):
         return (False,[BOARDDNE])
         
     message = get_message_by_id(board, m_id)
+    if not message:
+        return (False, [MSGS_DNE])
     if message.creator != u_id:
         return (False,[UNOPERMS])
     
@@ -120,13 +122,7 @@ def delt_msg(b_id, u_id, m_id):
             pass
     return (True,[])
 ##############################MESSAGE OUTPUT####################################
-'''
-@param b_id The ID of the board to target
-@param m_ids An optional list of message ids' to specifically include
-@param subjects_only Flag to determine if only subjects (not message contents) should be returned
-@param new_only False to ignore, or a specific user ID to return the 'new' messages on the board
-@return False if the board doesn't exist, or the board has no messages
-'''
+
 def get_msgs(b_id, u_id, m_ids, subjects_only=False, new_only=False):
     board = get_board_by_id(b_id)
     if not board: #Board does not exist
@@ -138,6 +134,8 @@ def get_msgs(b_id, u_id, m_ids, subjects_only=False, new_only=False):
 
     if len(m_ids):
         msgs = [msg for msg in msgs if msg.m_id in m_ids]
+        if len(msgs) != len(m_ids):
+            return (False, [MSGS_DNE])
     if new_only:
         try:
             msgs = [msg for msg in msgs if msg.m_id in board.msgs_map[u_id]]

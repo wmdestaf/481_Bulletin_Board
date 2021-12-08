@@ -6,7 +6,7 @@ from socket import AF_INET, SOCK_STREAM
 from socket import error as GENERIC_SOCKET_ERROR
 from threading import Thread
 import signal
-serverPort = 12000
+serverPort = 13037
 
 try:
     serverSocket = socket.socket(AF_INET,SOCK_STREAM)
@@ -80,13 +80,14 @@ while True:
         print("\rConnection on:", addr)
         extractors.append(SBBP_Frame_Extractor(connectionSocket, addr, RECV_SSIZE, on_recieve_frame))
     except socket.timeout: #don't block permanently, allow other things to happen on main server thread
-        cur_anim = (cur_anim + 1) % (len(anims) * 20)
+        cur_anim = (cur_anim + 1) % (len(anims))
         print("\rWaiting for connection... " + anims[cur_anim % len(anims)], end='')
         
         if not cur_anim: #this could probably be a one-liner
             for extractor in extractors: 
                 if not extractor.alive():
-                    extractors.remove(extractor)
+                    extractors.remove(extractor)         
+        
     except GENERIC_SOCKET_ERROR as e:
         print("Failed to accept connection:",e)
     finally: #In the event that the except failed
