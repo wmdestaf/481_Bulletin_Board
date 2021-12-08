@@ -2,14 +2,21 @@ from proto9_util_extractor import *
 from proto9_util_argparse  import *
 from proto9_data           import *
 import socket
-from socket import AF_INET, SOCK_STREAM, error
+from socket import AF_INET, SOCK_STREAM
+from socket import error as GENERIC_SOCKET_ERROR
 from threading import Thread
 import signal
 serverPort = 12000
-serverSocket = socket.socket(AF_INET,SOCK_STREAM)
-serverSocket.settimeout(0.5)
-serverSocket.bind(('',serverPort))
-serverSocket.listen(1)
+
+try:
+    serverSocket = socket.socket(AF_INET,SOCK_STREAM)
+    serverSocket.settimeout(0.5)
+    serverSocket.bind(('',serverPort))
+    serverSocket.listen(1)
+except GENERIC_SOCKET_ERROR as e:
+    print("Could not create socket:",e)
+    quit(1)
+
 print('The server is ready to receive')
 
 def on_recieve_frame(*args): 
@@ -36,7 +43,7 @@ def on_recieve_frame(*args):
         
     try:  
         socket.sendall(raw)
-    except error:
+    except GENERIC_SOCKET_ERROR as e:
         print(e)
 
 server_shutdown_lk  = Semaphore(1)
@@ -51,9 +58,13 @@ def on_exit(*args):
         return
         
     print("\nStopping server...")
+    kill_ct = 0
     for extractor in extractors:
         extractor.close()
+        kill_ct += 1
     server_shutdown_lk.release()
+    
+    print("Killed {:d} connection(s).".format(kill_ct))
     quit()
    
 signal.signal(signal.SIGINT, on_exit)
@@ -63,8 +74,8 @@ anims = ('|','/','—','\\')
 extractors = []
 
 while True:
+    server_shutdown_lk.acquire()
     try:
-        server_shutdown_lk.acquire()
         connectionSocket, addr = serverSocket.accept()
         print("\rConnection on:", addr)
         extractors.append(SBBP_Frame_Extractor(connectionSocket, addr, RECV_SSIZE, on_recieve_frame))
@@ -74,9 +85,11 @@ while True:
         
         if not cur_anim: #this could probably be a one-liner
             for extractor in extractors: 
-                if not alive(extractor):
+                if not extractor.alive():
                     extractors.remove(extractor)
-    finally:
+    except GENERIC_SOCKET_ERROR as e:
+        print("Failed to accept connection:",e)
+    finally: #In the event that the except failed
         server_shutdown_lk.release()
         
     if shutdown_after_done:

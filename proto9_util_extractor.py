@@ -77,7 +77,7 @@ class SBBP_Frame_Extractor:
         return True
         
     def close(self):
-        if not alive():
+        if not self.alive():
             return
             
         self.sock.shutdown(SHUT_RDWR)
