@@ -17,6 +17,7 @@ RESEMPTY = 0x30 #The specified operation was acceptable, but returned an empty r
 FAULT_CODES    = {INVALFMT, UNKNWNOP, ARGCOUNT, ARGVALUE}
 
 OPCODE_LEN = 8  #On something that can be limited, limit (to ease with parsing)
+RECV_SSIZE = 32 #Size of each recv call
 
 def ASCII_REPR(number):
     return chr(number)

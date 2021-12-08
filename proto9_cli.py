@@ -33,16 +33,23 @@ def on_recieve_frame(*args):
         
     print(res)
 
-SBBP_Frame_Extractor(clientSocket, 32, on_recieve_frame)
+extractor = SBBP_Frame_Extractor(clientSocket, (serverName, serverPort), RECV_SSIZE, on_recieve_frame)
+
+def on_exit(*args):
+    extractor.close()
+    quit()
+signal.signal(signal.SIGINT, on_exit)
 
 while True:
     msg = input("MSG: ")
+    if not msg:
+        extractor.close()
     clientSocket.sendall(str_to_bytes(zip_seperators(msg)))
     time.sleep(0.5)
     
 '''
     TODO:
+    client send like a human being
     semaphore on client input recieve
     lock access to board with RWSEM
-    ensure dying socket does not exception / deadlock
 '''

@@ -1,6 +1,7 @@
-from socket import AF_INET, SOCK_STREAM
+from socket import AF_INET, SOCK_STREAM, SHUT_RDWR
+from socket import error as GENERIC_SOCKET_ERROR
 from threading import Thread, Semaphore
-from proto8_constants import *
+from proto9_constants import *
 import re
 
 def str_to_bytes(string):
@@ -20,10 +21,20 @@ def unzip_seperators(formatted):
 def SBBP_Frame_Extractor0(ref):
     buf = bytes(0)
     while True:
-        frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
+    
+        try:
+            frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
+        except ConnectionResetError:
+            print("The connection was reset. {}".format(ref.addr))
+            return
+        except ConnectionAbortedError:
+            print("You have forcibly closed the connection.")
+            return
+        except GENERIC_SOCKET_ERROR:
+            return #shhhhhhhhh
 
         if not len(frame): #socket died
-            print("socket died... :(")
+            print("The connection was closed! {}".format(ref.addr))
             return
 
         if END in frame: #hit the terminator
@@ -51,8 +62,24 @@ def SBBP_Frame_Extractor0(ref):
             buf += frame
 
 class SBBP_Frame_Extractor:
-    def __init__(self, sock, bf_size, fun):
+    def __init__(self, sock, addr, bf_size, fun):
         self.sock    = sock
+        self.addr    = addr
         self.fun     = fun
         self.bf_size = bf_size
+        self.die_lk  = Semaphore(1)
         Thread(target=SBBP_Frame_Extractor0, args=(self,)).start() #recv thread
+        
+    def alive(self):
+        if not self.die_lk.acquire(blocking=False):
+            return False
+        self.die_lk.release()
+        return True
+        
+    def close(self):
+        if not alive():
+            return
+            
+        self.sock.shutdown(SHUT_RDWR)
+        self.sock.close()
+        self.die_lk.release()

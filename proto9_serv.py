@@ -7,6 +7,7 @@ from threading import Thread
 import signal
 serverPort = 12000
 serverSocket = socket.socket(AF_INET,SOCK_STREAM)
+serverSocket.settimeout(0.5)
 serverSocket.bind(('',serverPort))
 serverSocket.listen(1)
 print('The server is ready to receive')
@@ -38,7 +39,45 @@ def on_recieve_frame(*args):
     except error:
         print(e)
 
+server_shutdown_lk  = Semaphore(1)
+shutdown_after_done = 0
+
+def on_exit(*args):
+    global shutdown_after_done
+    
+    #did we interrupt something?
+    if not server_shutdown_lk.acquire(blocking=False):
+        shutdown_after_done = 1
+        return
+        
+    print("\nStopping server...")
+    for extractor in extractors:
+        extractor.close()
+    server_shutdown_lk.release()
+    quit()
+   
+signal.signal(signal.SIGINT, on_exit)
+
+cur_anim = 0 #for a pretty animation. Doubles as a polling timer
+anims = ('|','/','—','\\')
+extractors = []
+
 while True:
-    connectionSocket, addr = serverSocket.accept()
-    print("Connection on:", addr)
-    SBBP_Frame_Extractor(connectionSocket, 32, on_recieve_frame)
+    try:
+        server_shutdown_lk.acquire()
+        connectionSocket, addr = serverSocket.accept()
+        print("\rConnection on:", addr)
+        extractors.append(SBBP_Frame_Extractor(connectionSocket, addr, RECV_SSIZE, on_recieve_frame))
+    except socket.timeout: #don't block permanently, allow other things to happen on main server thread
+        cur_anim = (cur_anim + 1) % (len(anims) * 20)
+        print("\rWaiting for connection... " + anims[cur_anim % len(anims)], end='')
+        
+        if not cur_anim: #this could probably be a one-liner
+            for extractor in extractors: 
+                if not alive(extractor):
+                    extractors.remove(extractor)
+    finally:
+        server_shutdown_lk.release()
+        
+    if shutdown_after_done:
+        on_exit()   

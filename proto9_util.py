@@ -1,4 +1,5 @@
 from socket import AF_INET, SOCK_STREAM
+from socket import error as SocketError
 from threading import Thread, Semaphore
 import re
 
@@ -12,14 +13,19 @@ def zip_seperators(unformatted):
     return re.sub(r'\[(F[C-F])\]', lambda hx: chr(int(hx.group(1),16)), unformatted)
 
 def unzip_seperators(formatted):
-    for i in range(0xFC, 0x100):
+    for i in range(FIELDSEP, END + 1):
         formatted = formatted.replace(chr(i), '[' + hex(i)[2:] + ']')
     return formatted
 
 def SBBP_Frame_Extractor0(ref):
     buf = bytes(0)
     while True:
-        frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
+    
+        try:
+            frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
+        except socket.error:
+            print("ER")
+            break
         #print_recv_frame_debug(frame)
         
         if not len(frame): #socket died
