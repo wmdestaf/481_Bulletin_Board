@@ -11,14 +11,16 @@ import re
 import time
 import signal
 
+#Request useer for server IP
 while True:
     serverName = input('Connect where? ')
     if not serverName:
         continue
     break
 
-serverPort = 13037
+serverPort = 13037 #per assignment specification
 
+#Establish a socket
 try:
     clientSocket = socket.socket(AF_INET, SOCK_STREAM)
     clientSocket.settimeout(0.5)
@@ -26,14 +28,18 @@ except GENERIC_SOCKET_ERROR as e:
     print("Could not establish socket -",e)
     quit(1)
     
+#Connect the socket to the server
 try:
     clientSocket.connect((serverName,serverPort))
 except GENERIC_SOCKET_ERROR as e:
     print("Could not connect to server -",e)
     quit(1)
 
-mutex = Semaphore(1)
-#begin a recieving thread
+'''
+    Called by the client's Frame Extractor upon reception of a complete frame.
+    Note: This function's calling context is from a daemon.
+    @param args Variable number of arguments
+'''
 def on_recieve_frame(*args):
     socket = args[0]
     frame  = args[1]
@@ -43,7 +49,7 @@ def on_recieve_frame(*args):
     parsed = CLIENT_ARGPARSER.parse_message(frame)
     
     if not isinstance(parsed, tuple): #Server returned something strange...very bad!
-        print( ("#"*20) + "ERROR" + ("#"*20))
+        print(("#"*20) + "ERROR" + ("#"*20))
         print("Could not parse response from server! (parse returned {:d})".format(parsed))
         print("Dumping information...")
         print(frame)
@@ -53,18 +59,35 @@ def on_recieve_frame(*args):
     print(res)
     client_io_lock.release()
 
+'''
+    Cleans up on keyboard interrupt. This is additionally fired if
+    the client's frame extractor encounters a socket error.
+    Because of signal hackery, this can be called from the client's context
+    by a thread.
+    @param args unused
+'''
 def on_exit(*args):
+    client_io_lock.release() #Just in case we're still holding the lock
     extractor.mark_dead()
     extractor.t.join()
     quit(0)
-signal.signal(signal.SIGINT, on_exit)
+signal.signal(signal.SIGINT, on_exit) #register the handler
 
-client_io_lock = Semaphore(1)
+client_io_lock = Semaphore(1) #Ensure that recieved messages appear prettily.
+                              #Absolutely not necessary as SBBP_Frame_Extractor handles
+                              #incomplete messages split across multiple recv calls, but...
 
+'''
+    Called upon recieving socket error in the extractor. Will notify
+    main through a KeyboardInterrupt signal, the equivalent of
+    calling on_exit from main's context.
+    @param args unused
+'''
 def on_extractor_die(*args):
     print("Server unexpectedly terminated...Press <Enter> to exit.")
     interrupt_main()
 
+#Client's frame extractor
 extractor = SBBP_Frame_Extractor(clientSocket, (serverName, serverPort), 
             RECV_SSIZE, on_recieve_frame, die_fun = on_extractor_die)
 
@@ -88,8 +111,3 @@ while True:
         break
     
 on_exit()   
-    
-'''
-    TODO: 
-    lock access to board with RWSEM
-'''
