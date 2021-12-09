@@ -57,12 +57,16 @@ def on_recieve_frame(*args):
 server_shutdown_lk  = Semaphore(1) #Ensure all extractors are shutdown before exit
 shutdown_after_done = 0            #'Atomic'
 
+'''
+    On exit, attempt to shutdown ALL extractors
+    @param args unused
+'''
 def on_exit(*args):
     global shutdown_after_done
     
     #did we interrupt something?
     if not server_shutdown_lk.acquire(blocking=False):
-        shutdown_after_done = 1
+        shutdown_after_done = 1 #Tell main to handle us once it finishes another timeout
         return
         
     print("\nStopping server...")
@@ -88,14 +92,13 @@ while True:
         print("\rConnection on:", addr)
         extractors.append(SBBP_Frame_Extractor(connectionSocket, addr, RECV_SSIZE, on_recieve_frame))
     except socket.timeout: #don't block permanently, allow other things to happen on main server thread
-        cur_anim = (cur_anim + 1) % (len(anims))
+        cur_anim = (cur_anim + 1) % ( (len(anims)) * 5 ) #Poll every '5' animation cycles
         print("\rWaiting for connection... " + anims[cur_anim % len(anims)], end='')
         
         if not cur_anim: #periodically poll and purge expired extractors
             for extractor in extractors: 
                 if not extractor.alive():
                     extractors.remove(extractor)         
-        
     except GENERIC_SOCKET_ERROR as e:
         print("Failed to accept connection:",e)
     finally: #In the event that the except failed
