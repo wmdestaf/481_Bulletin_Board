@@ -6,6 +6,7 @@ import socket
 from socket import AF_INET, SOCK_STREAM
 from socket import error as GENERIC_SOCKET_ERROR
 from threading import Thread, Semaphore
+from _thread import interrupt_main
 import re
 import time
 import signal
@@ -46,13 +47,19 @@ def on_recieve_frame(*args):
     print(res)
     client_io_lock.release()
 
-client_io_lock = Semaphore(1)
-extractor = SBBP_Frame_Extractor(clientSocket, (serverName, serverPort), RECV_SSIZE, on_recieve_frame)
-
 def on_exit(*args):
     extractor.close()
     quit()
 signal.signal(signal.SIGINT, on_exit)
+
+client_io_lock = Semaphore(1)
+
+def on_extractor_die(*args):
+    print("Server terminated...Press <Enter> to exit.")
+    interrupt_main()
+
+extractor = SBBP_Frame_Extractor(clientSocket, (serverName, serverPort), 
+            RECV_SSIZE, on_recieve_frame, die_fun = on_extractor_die)
 
 #main processing loop
 set_user("What is your User ID?")
@@ -63,7 +70,7 @@ while True:
     try:
         opcode, args = get_client_input()
     except TypeError: #returned 'None'
-        on_exit()
+        break
         
     raw = str_to_bytes(argjoin(opcode, args))
 
@@ -71,13 +78,11 @@ while True:
         clientSocket.sendall(raw)
     except GENERIC_SOCKET_ERROR as e:
         print("Error sending message:",e)
-        on_exit()
+        break
     
-    
+on_exit()   
     
 '''
     TODO: 
-    client send like a human being
     lock access to board with RWSEM
-    on input, specify user ID at logon and do not permit change
 '''

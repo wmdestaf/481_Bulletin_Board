@@ -83,7 +83,7 @@ while True:
         cur_anim = (cur_anim + 1) % (len(anims))
         print("\rWaiting for connection... " + anims[cur_anim % len(anims)], end='')
         
-        if not cur_anim: #this could probably be a one-liner
+        if not cur_anim: #periodically poll and purge expired extractors
             for extractor in extractors: 
                 if not extractor.alive():
                     extractors.remove(extractor)         

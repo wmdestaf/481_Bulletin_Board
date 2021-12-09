@@ -1,8 +1,11 @@
 from proto9_constants import *
 import time
 import copy
+from threading import Semaphore
+from rwlock import RWLock
 
-boards = []
+boards = None
+GLOBAL_BOARD_LOCK = None
 
 ####################################STRUCTS#####################################
 class Message:
@@ -33,6 +36,7 @@ class Board:
         self.messages = []
         self.m_id_ctr = 1
         self.msgs_map = {}
+        self.lock     = RWLock()
     
     def next_id(self):
         self.m_id_ctr += 1
@@ -51,122 +55,133 @@ def get_message_by_id(board, m_id):
     return next((m for m in board.messages if m.m_id == m_id), None)
 ####################################BOARDS######################################   
 def create_b(b_id, u_id):
-    if get_board_by_id(b_id):
-        return (False,[BOARDDNE])
-        
-    boards.append(Board(b_id, u_id))
-    return (True,[])
+    with GLOBAL_BOARD_LOCK.w_locked():
+        if get_board_by_id(b_id):
+            return (False,[BOARDDNE])
+            
+        boards.append(Board(b_id, u_id))
+        return (True,[])
     
 def delete_b(b_id, u_id):
-    board = get_board_by_id(b_id)
-    if not board: #Board does not exist
-        return (False,[BOARDDNE])
-    elif board.creator != u_id: #User does not have permission
-        return (False,[UNOPERMS])
-       
-    boards.remove(board)
-    return (True,[])
+    with GLOBAL_BOARD_LOCK.w_locked():
+        board = get_board_by_id(b_id)
+        if not board: #Board does not exist
+            return (False,[BOARDDNE])
+        elif board.creator != u_id: #User does not have permission
+            return (False,[UNOPERMS])
+           
+        boards.remove(board)
+        return (True,[])
 #############################BOARD INFORMATION##################################    
 def get_m_ct(b_id):
-    board = get_board_by_id(b_id)
-    if not board: #Board does not exist
-        return (False,[BOARDDNE])
-    return (True,len(board.messages))
+    with GLOBAL_BOARD_LOCK.r_locked():
+        board = get_board_by_id(b_id)
+        if not board: #Board does not exist
+            return (False,[BOARDDNE])
+            
+        with board.lock.r_locked():
+            return (True,len(board.messages))
     
 def getnewct(b_id, u_id):
-    board = get_board_by_id(b_id)
-    if not board: #Board does not exist
-        return (False,[BOARDDNE])
-
-    '''
-    A new message, in the context of a user's ID, must satisfy ALL of the following properties:
-        Was created on a board after the user's most recent 'All' query for the board
-        Does not exist in the board's uID -> new Message mapping
-    '''
-    try: #Are we keeping track of unread messages for this user?
-        return (True,len(board.msgs_map[u_id]))
-    except KeyError: #If not, they've read *none* of them!  
-        return (True,len([msg for msg in board.messages if msg.creator != u_id]))
-    
+    with GLOBAL_BOARD_LOCK.r_locked():
+        board = get_board_by_id(b_id)
+        if not board: #Board does not exist
+            return (False,[BOARDDNE])
+        
+        with board.lock.r_locked():
+            try: #Are we keeping track of unread messages for this user?
+                return (True,len(board.msgs_map[u_id]))
+            except KeyError: #If not, they've read *none* of them!  
+                return (True,len([msg for msg in board.messages if msg.creator != u_id]))
+        
 ##############################MESSAGE INPUT#####################################   
 def post_msg(b_id, u_id, subject, msg_text):
-    board = get_board_by_id(b_id)
-    if not board: #Board does not exist
-        return (False,[BOARDDNE])
-    
-    #get and autoincrement post counter
-    m_id = board.next_id()
-    
-    message = Message(m_id, u_id, subject, msg_text)
-    board.messages.append(message)
-    return (True,[])
+    with GLOBAL_BOARD_LOCK.r_locked():
+        board = get_board_by_id(b_id)
+        if not board: #Board does not exist
+            return (False,[BOARDDNE])
+        
+        with board.lock.w_locked():
+            #get and autoincrement post counter
+            m_id = board.next_id()
+            
+            message = Message(m_id, u_id, subject, msg_text)
+            board.messages.append(message)
+            return (True,[])
     
 def delt_msg(b_id, u_id, m_id):
-    board = get_board_by_id(b_id)
-    if not board: #Board does not exist
-        return (False,[BOARDDNE])
-        
-    message = get_message_by_id(board, m_id)
-    if not message:
-        return (False, [MSGS_DNE])
-    if message.creator != u_id:
-        return (False,[UNOPERMS])
-    
-    board.messages.remove(message)
-    
-    #REMOVE ID FROM ALL UNREAD LISTS
-    for m_id_list in board.msgs_map.values():
-        try:
-            m_id_list.remove(m_id)
-        except KeyError:
-            pass
-    return (True,[])
+    with GLOBAL_BOARD_LOCK.r_locked():
+        board = get_board_by_id(b_id)
+        if not board: #Board does not exist
+            return (False,[BOARDDNE])
+            
+        with board.lock.w_locked():
+            message = get_message_by_id(board, m_id)
+            if not message:
+                return (False, [MSGS_DNE])
+            if message.creator != u_id:
+                return (False,[UNOPERMS])
+            
+            board.messages.remove(message)
+            
+            #REMOVE ID FROM ALL UNREAD LISTS
+            for m_id_list in board.msgs_map.values():
+                try:
+                    m_id_list.remove(m_id)
+                except KeyError:
+                    pass
+            return (True,[])
 ##############################MESSAGE OUTPUT####################################
 
 def get_msgs(b_id, u_id, m_ids, subjects_only=False, new_only=False):
-    board = get_board_by_id(b_id)
-    if not board: #Board does not exist
-        return (False,[BOARDDNE])
-    elif not board.messages:
-        return (False,[RESEMPTY])
-
-    msgs = copy.deepcopy(board.messages) #this can be avoided.
-
-    if len(m_ids):
-        msgs = [msg for msg in msgs if msg.m_id in m_ids]
-        if len(msgs) != len(m_ids):
-            return (False, [MSGS_DNE])
-    if new_only:
-        try:
-            msgs = [msg for msg in msgs if msg.m_id in board.msgs_map[u_id]]
-        except KeyError:
-            board.msgs_map[u_id] = [msg.m_id for msg in board.messages if msg.creator != u_id]
-            msgs = [msg for msg in msgs if msg.m_id in board.msgs_map[u_id]]
-
-    #optimize and update unread messages for a user
-    #however, requesting the subject lines certainly does not count as 'reading' the message!
-    if not subjects_only:
-        for msg in msgs:
-            try:
-                if msg.m_id in board.msgs_map[u_id]:
-                    board.msgs_map[u_id].remove(msg.m_id)
-            except KeyError: #no such map for the given user...create it!
-                board.msgs_map[u_id] = [msg_.m_id for msg_ in board.messages if msg_.creator != u_id]
-                if msg.m_id in board.msgs_map[u_id]:
-                    board.msgs_map[u_id].remove(msg.m_id)
-
-    if not subjects_only:
-        ret = [False,[[msg.m_id, msg.creator, msg.created, msg.subject, msg.text] for msg in msgs]]
-    else:
-        ret = [True,[[msg.m_id, msg.creator, msg.created, msg.subject, "ignore"] for msg in msgs]]
+    with GLOBAL_BOARD_LOCK.r_locked():
+        board = get_board_by_id(b_id)
+        if not board: #Board does not exist
+            return (False,[BOARDDNE])
         
-    if not ret[1]:
-        return (False, [RESEMPTY])
-    else:
-        return (True, ret)
+        with board.lock.w_locked(): #Write necessary, as reading a message may constitute 
+                                      #adjusting someone's 'new messages' list
+            if not board.messages:
+                return (False,[RESEMPTY])
+
+            msgs = copy.deepcopy(board.messages) #this can be avoided.
+
+            if len(m_ids):
+                msgs = [msg for msg in msgs if msg.m_id in m_ids]
+                if len(msgs) != len(m_ids):
+                    return (False, [MSGS_DNE])
+            if new_only:
+                try:
+                    msgs = [msg for msg in msgs if msg.m_id in board.msgs_map[u_id]]
+                except KeyError:
+                    board.msgs_map[u_id] = [msg.m_id for msg in board.messages if msg.creator != u_id]
+                    msgs = [msg for msg in msgs if msg.m_id in board.msgs_map[u_id]]
+
+            #optimize and update unread messages for a user
+            #however, requesting the subject lines certainly does not count as 'reading' the message!
+            if not subjects_only:
+                for msg in msgs:
+                    try:
+                        if msg.m_id in board.msgs_map[u_id]:
+                            board.msgs_map[u_id].remove(msg.m_id)
+                    except KeyError: #no such map for the given user...create it!
+                        board.msgs_map[u_id] = [msg_.m_id for msg_ in board.messages if msg_.creator != u_id]
+                        if msg.m_id in board.msgs_map[u_id]:
+                            board.msgs_map[u_id].remove(msg.m_id)
+
+            if not subjects_only:
+                ret = [False,[[msg.m_id, msg.creator, msg.created, msg.subject, msg.text] for msg in msgs]]
+            else:
+                ret = [True,[[msg.m_id, msg.creator, msg.created, msg.subject, "ignore"] for msg in msgs]]
+                
+            if not ret[1]:
+                return (False, [RESEMPTY])
+            else:
+                return (True, ret)
 ##################################################################################
         
 boards = [Board(0, -1)]
+GLOBAL_BOARD_LOCK = RWLock()
 
 def EXECUTE_ARGS_SERVER(opcode, args):
     if opcode == "GET_M_CT":
@@ -224,4 +239,3 @@ def EXECUTE_ARGS_CLIENT(opcode, args):
         return "Error: {:d}".format(ord(args[0]))
     else:
         return "Unknown Opcode: {}".format(opcode)
-

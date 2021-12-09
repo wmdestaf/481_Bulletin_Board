@@ -34,10 +34,12 @@ def SBBP_Frame_Extractor0(ref):
             return
         except GENERIC_SOCKET_ERROR:
             ref.mark_dead()
+            ref.on_death()
             return
 
         if not len(frame): #socket died
             ref.mark_dead()
+            ref.on_death()
             print("The connection was closed! {}".format(ref.addr))
             return
 
@@ -66,11 +68,12 @@ def SBBP_Frame_Extractor0(ref):
             buf += frame
 
 class SBBP_Frame_Extractor:
-    def __init__(self, sock, addr, bf_size, fun):
+    def __init__(self, sock, addr, bf_size, fun, die_fun=None):
         self.sock    = sock
         self.addr    = addr
         self.fun     = fun
         self.bf_size = bf_size
+        self.die_fun = die_fun
         self.die_lk  = Semaphore(1)
         self.dead    = False
         Thread(target=SBBP_Frame_Extractor0, args=(self,)).start() #recv thread
@@ -81,11 +84,19 @@ class SBBP_Frame_Extractor:
     def mark_dead(self):
         self.dead = True
         
+    def on_death(self):
+        if self.die_fun:
+            self.die_fun()
+        
     def close(self):
-        if not self.die_lk.acquire(blocking=False) and self.alive():
+        if not self.die_lk.acquire(blocking=False):
+            return
+        elif not self.alive():
+            self.die_lk.release()
             return
             
         self.sock.shutdown(SHUT_RDWR)
         self.sock.close()
-        self.dead = True
+        self.mark_dead()
+        self.on_death()
         self.die_lk.release()
