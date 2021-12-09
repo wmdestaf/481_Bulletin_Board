@@ -17,7 +17,7 @@ except GENERIC_SOCKET_ERROR as e:
     print("Could not create socket:",e)
     quit(1)
 
-print('The server is ready to receive')
+print('The server is ready to receive\n(Ctrl-C to exit)')
 
 def on_recieve_frame(*args): 
     socket = args[0]
@@ -64,8 +64,8 @@ def on_exit(*args):
         kill_ct += 1
     server_shutdown_lk.release()
     
-    print("Killed {:d} connection(s).".format(kill_ct))
-    quit()
+    print("Ended {:d} active connection(s).".format(kill_ct))
+    quit(0)
    
 signal.signal(signal.SIGINT, on_exit)
 

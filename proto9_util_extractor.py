@@ -1,4 +1,4 @@
-from socket import AF_INET, SOCK_STREAM, SHUT_RDWR
+from socket import AF_INET, SOCK_STREAM, SHUT_RDWR, timeout
 from socket import error as GENERIC_SOCKET_ERROR
 from threading import Thread, Semaphore
 from proto9_constants import *
@@ -23,7 +23,14 @@ def SBBP_Frame_Extractor0(ref):
     while True:
     
         try:
-            frame = ref.sock.recv(ref.bf_size) #TODO: GUARD
+            frame = ref.sock.recv(ref.bf_size)
+        except timeout:
+            if not ref.alive():
+                ref.sock.shutdown(SHUT_RDWR)
+                ref.sock.close()
+                return
+            else:
+                continue
         except ConnectionResetError:
             print("The connection was reset. {}".format(ref.addr))
             ref.close()
@@ -37,10 +44,10 @@ def SBBP_Frame_Extractor0(ref):
             ref.on_death()
             return
 
-        if not len(frame): #socket died
+        if not len(frame): #got a FIN/ACK in the correct way
             ref.mark_dead()
             ref.on_death()
-            print("The connection was closed! {}".format(ref.addr))
+            print("The connection has been properly closed! {}".format(ref.addr))
             return
 
         if END in frame: #hit the terminator
@@ -76,7 +83,10 @@ class SBBP_Frame_Extractor:
         self.die_fun = die_fun
         self.die_lk  = Semaphore(1)
         self.dead    = False
-        Thread(target=SBBP_Frame_Extractor0, args=(self,)).start() #recv thread
+        t = Thread(target=SBBP_Frame_Extractor0, args=(self,))
+        t.daemon = True
+        t.start() #recv thread
+        self.t = t
         
     def alive(self):
         return not self.dead
@@ -95,8 +105,6 @@ class SBBP_Frame_Extractor:
             self.die_lk.release()
             return
             
-        self.sock.shutdown(SHUT_RDWR)
-        self.sock.close()
         self.mark_dead()
         self.on_death()
         self.die_lk.release()

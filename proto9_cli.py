@@ -11,11 +11,17 @@ import re
 import time
 import signal
 
-serverName = 'localhost'
+while True:
+    serverName = input('Connect where? ')
+    if not serverName:
+        continue
+    break
+
 serverPort = 13037
 
 try:
     clientSocket = socket.socket(AF_INET, SOCK_STREAM)
+    clientSocket.settimeout(0.5)
 except GENERIC_SOCKET_ERROR as e:
     print("Could not establish socket -",e)
     quit(1)
@@ -48,14 +54,15 @@ def on_recieve_frame(*args):
     client_io_lock.release()
 
 def on_exit(*args):
-    extractor.close()
-    quit()
+    extractor.mark_dead()
+    extractor.t.join()
+    quit(0)
 signal.signal(signal.SIGINT, on_exit)
 
 client_io_lock = Semaphore(1)
 
 def on_extractor_die(*args):
-    print("Server terminated...Press <Enter> to exit.")
+    print("Server unexpectedly terminated...Press <Enter> to exit.")
     interrupt_main()
 
 extractor = SBBP_Frame_Extractor(clientSocket, (serverName, serverPort), 
