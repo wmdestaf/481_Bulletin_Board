@@ -10,13 +10,15 @@ actions = '''
   7. Delete Board
   8. Quit
 '''
-n_actions = 8
+n_actions = len(actions.split('\n')) - 2 #multiline strings are weird...
 
-#to facilitate the addition of new options
-options_string = ("Post Message","Delete Message","Get Messages","Get Message Count",
-                          "Get New Message Count","Create Board","Delete Board","Quit")
-actions = "\n".join("{:3d}. {}".format(idx, val) for idx, val in enumerate(options_string,start=1))
 
+'''
+    Requests a user for a boolean [Y/N] until they provide one, with the given prompt.
+    @param prompt the prompt to give
+    @return True if the user's input starts with a 'y' of any case, or False if
+    it begins with a 'n' of any case, or is empty.
+'''
 def get_bool(prompt):
     while True:
         x = input(prompt + " ").upper()
@@ -28,6 +30,13 @@ def get_bool(prompt):
         elif x[0] == 'N':
             return False
 
+'''
+    Requests a user to input a series of positive integers with the provided prompt,
+    seperated by commas. Each integer must be positive. If nothing is provided,
+    returns an empty list.
+    @param prompt The prompt to provide to the user
+    @return A list containing each provided integer (or an empty list, if none are)
+'''
 def get_int_csv(prompt):
     while True:
         x = input(prompt + " ")
@@ -36,23 +45,35 @@ def get_int_csv(prompt):
             
         try:
             ret = [int(y) for y in x.split(",")]
-            if any(n < 0 for n in ret):
+            if any(n < 0 for n in ret): #no such thing as a negative msg id
                 raise ValueError
             return ret
         except ValueError:
             pass
 
+'''
+    Requests a user to input an integer with the provided prompt.
+    The integer must be positive.
+    @param prompt The prompt to provide to the user
+    @return The integer inputted by the user
+'''
 def get_int(prompt):
     while True:
         try:
             x = int(input(prompt + " "))
-            if x < 0:
+            if x < 0: #no such thing as a negative user id
                 raise ValueError
         except ValueError:
             continue
             
         return x
     
+'''
+    Requests a user to input a string with the provided prompt.
+    The string must not be empty, or contain the control characters 0xFC,0xFD,0xFE, or 0xFF
+    @param prompt The prompt to provide to the user
+    @return The string inputted by the user
+'''
 def get_str(prompt):
     while True:
         s = input(prompt + " ")
@@ -60,21 +81,38 @@ def get_str(prompt):
             continue
         return s
     
-user = -1
+user = -1 #The 'User ID' to be returned on a call to get_user
     
+'''
+    Returns the current User ID
+    @return The current User ID
+'''
 def get_user():
     return user
     
+'''
+    Sets the current user ID from an input with provided 'prompt'
+    @param prompt The input to provide
+'''
 def set_user(prompt):
     global user
     user = get_int(prompt)
 
+'''
+    Main function to request client input.
+    First, provides client with list of options, forced to select from
+    Then, request client input parameters according to specific format respective 
+    to the option selected.
+    @return [The associated opcode selected, The associated operand selected]
+    @return None if the user has chosen to 'exit'
+'''
 def get_client_input():
     print("What would you like to do?")
-    
-    #force the user to make a decision
+
     while True: 
         print(actions)
+        
+        #Force user to provide a valid selection
         try:
             choice = int(input(">> "))
             if choice < 1 or choice > n_actions:
@@ -100,7 +138,10 @@ def get_client_input():
         return ("DELETE_B",[get_int("Board?"), get_user()])
     elif choice == 8: #EXIT
         return None
-     
+    
+'''
+    Small little interactive prompt for testing purposes.
+'''
 if __name__ == "__main__": 
     set_user("User?")
     
