@@ -101,7 +101,7 @@ def get_message_by_id(board, m_id):
 def create_b(b_id, u_id):
     with GLOBAL_BOARD_LOCK.w_locked():
         if get_board_by_id(b_id):
-            return (False,[BOARDDNE])
+            return (False,[BOARDEXE])
             
         boards.append(Board(b_id, u_id))
         return (True,[])
@@ -339,6 +339,8 @@ def EXECUTE_ARGS_CLIENT(opcode, args):
         else:
             if err == BOARDDNE:
                 return "Specified board does not exist."
+            elif err == BOARDEXE:
+                return "Specified board already exists."
             elif err == MSGS_DNE:
                 return "One or more of the specified message(s) do not exist."
             elif err == UNOPERMS:

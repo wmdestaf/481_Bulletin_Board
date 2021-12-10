@@ -32,8 +32,8 @@ def zip_seperators(unformatted):
 
 '''
     Converts any unescaped seperators to their escaped counterpart: 
-    e.g. 'ab\xYZcd' = 'ab[YZ]cd'. Hardcoded for this protocol to only
-    accept character literals \xFC to \xFF, inclusive.
+    e.g. 'ab[0xYZ literal]cd' = 'ab[YZ]cd'. Hardcoded for this protocol to only
+    accept character literals FC to FF, inclusive.
     @param formatted The escaped string
     @return The unescaped string
 '''

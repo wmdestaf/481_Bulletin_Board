@@ -10,7 +10,8 @@ UNKNWNOP = 0x01 #Unknown Command Opcode
 ARGCOUNT = 0x02 #Incorrect number of arguments
 ARGVALUE = 0x03 #Unacceptable value of one or more arguments
 BOARDDNE = 0x10 #Specified board does not exist
-MSGS_DNE = 0x11 #One or more of the specified messages do not exist
+BOARDEXE = 0x11 #Specified board already exists
+MSGS_DNE = 0x12 #One or more of the specified messages do not exist
 UNOPERMS = 0x20 #The user does not have the appropriate permissions to perform the operation
 RESEMPTY = 0x30 #The specified operation was acceptable, but returned an empty result
 
@@ -18,7 +19,7 @@ RESEMPTY = 0x30 #The specified operation was acceptable, but returned an empty r
 FAULT_CODES = {INVALFMT, UNKNWNOP, ARGCOUNT, ARGVALUE}
 
 OPCODE_LEN = 8  #On something that can be limited, limit (to ease with parsing)
-RECV_SSIZE = 32 #Size of each recv call
+RECV_SSIZE = 32 #In practice would be something like 1024, but demonstrates frame seperation works!
 
 '''
     Converts an ordinal to its character representation
