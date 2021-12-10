@@ -213,7 +213,7 @@ def delt_msg(b_id, u_id, m_id):
             for m_id_list in board.msgs_map.values():
                 try:
                     m_id_list.remove(m_id)
-                except KeyError:
+                except ValueError:
                     pass
             return (True,[])
 ##############################MESSAGE OUTPUT####################################

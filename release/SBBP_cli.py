@@ -35,6 +35,8 @@ except GENERIC_SOCKET_ERROR as e:
     print("Could not connect to server -",e)
     quit(1)
 
+print("Successfully connected - Please be respectful and kind to other users!\nReminder: Global board number is 0")
+
 '''
     Called by the client's Frame Extractor upon reception of a complete frame.
     Note: This function's calling context is from a daemon.

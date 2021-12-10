@@ -107,7 +107,7 @@ def set_user(prompt):
     @return None if the user has chosen to 'exit'
 '''
 def get_client_input():
-    print("What would you like to do?")
+    print("What would you like to do, user [" + str(get_user()) + "]?")
 
     while True: 
         print(actions)
