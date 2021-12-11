@@ -1,4 +1,5 @@
 from SBBP_constants import *
+from SBBP_util_extractor import *
 
 actions = '''
   1. Post Message
@@ -78,6 +79,10 @@ def get_str(prompt):
     while True:
         s = input(prompt + " ")
         if not s or any(ASCII_REPR(control) in s for control in range(FIELDSEP,END + 1)):
+            continue
+        try:
+            str_to_bytes(s)
+        except:
             continue
         return s
     
