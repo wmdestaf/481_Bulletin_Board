@@ -6,7 +6,30 @@ from socket import AF_INET, SOCK_STREAM
 from socket import error as GENERIC_SOCKET_ERROR
 from threading import Thread
 import signal
+import sys
+from os.path import exists
 serverPort = 13037
+
+#load in the data
+argc = len(sys.argv)
+out_f = None
+if argc > 2:
+    print("usage: SBBP_serv [msgs_file]")
+    quit(1)
+elif argc == 2:
+    if not exists(sys.argv[1]):
+        print("File not found:",sys.argv[1])
+        quit(1)
+    out_f = sys.argv[1]
+    deserialize(out_f)
+else:
+    loc = input("File: (Empty to ignore) ")
+    if loc and not exists(loc):
+        print("File not found:",loc)
+        quit(1)
+    elif loc:
+        out_f = loc
+        deserialize(out_f)
 
 #attempt to create the socket
 try:
@@ -62,7 +85,7 @@ shutdown_after_done = 0            #'Atomic'
     @param args unused
 '''
 def on_exit(*args):
-    global shutdown_after_done
+    global shutdown_after_done, out_f
     
     #did we interrupt something?
     if not server_shutdown_lk.acquire(blocking=False):
@@ -76,6 +99,19 @@ def on_exit(*args):
         kill_ct += 1
     server_shutdown_lk.release()
     
+    #TODO: Serialize
+    if out_f: #a file already provided
+        while out_f and not serialize(out_f):
+            out_f = input("Failed to write to" + out_f + ": try another file? (empty to ignore) ")
+    else:
+        out_f = input("Location to save: (empty to ignore) ")
+        out_f = out_f if out_f.endswith(".sdb") else (out_f + ".sdb")
+        while out_f and not serialize(out_f):
+            out_f = input("Failed to write to" + out_f + ": try another file? (empty to ignore) ")
+     
+    if out_f:
+        print(out_f + ": saved successfully.")
+    
     print("Ended {:d} active connection(s).".format(kill_ct))
     quit(0)
    
@@ -84,6 +120,7 @@ signal.signal(signal.SIGINT, on_exit)
 cur_anim = 0 #for a pretty animation. Doubles as a polling timer
 anims = ('|','/','—','\\')
 extractors = []
+
 
 while True:
     server_shutdown_lk.acquire()
@@ -95,10 +132,9 @@ while True:
         cur_anim = (cur_anim + 1) % ( (len(anims)) * 5 ) #Poll every '5' animation cycles
         print("\rWaiting for connection... " + anims[cur_anim % len(anims)], end='')
         
-        if not cur_anim: #periodically poll and purge expired extractors
-            for extractor in extractors: 
-                if not extractor.alive():
-                    extractors.remove(extractor)         
+        for extractor in extractors: 
+            if not extractor.alive():
+                extractors.remove(extractor)         
     except GENERIC_SOCKET_ERROR as e:
         print("Failed to accept connection:",e)
     finally: #In the event that the except failed

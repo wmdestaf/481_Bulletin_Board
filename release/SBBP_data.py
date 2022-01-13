@@ -1,6 +1,8 @@
 from SBBP_constants import *
 import time
 import copy
+import json
+from json import JSONDecodeError
 from threading import Semaphore
 from rwlock import RWLock
 
@@ -16,10 +18,10 @@ class Message:
         @param subject The message subject
         @param text The message text
     '''
-    def __init__(self, m_id, creator_id, subject, text):
+    def __init__(self, m_id, creator_id, subject, text, created=None):
         self.m_id    = m_id
         self.creator = creator_id
-        self.created = time.time()
+        self.created = int(time.time()) if not created else created
         self.subject = subject
         self.text    = text
     
@@ -50,12 +52,12 @@ class Board:
         @param b_id The board's ID
         @param creator_id The board's creator's u_id
     '''
-    def __init__(self, b_id, creator_id):
+    def __init__(self, b_id, creator_id,mmap=None):
         self.b_id     = b_id
         self.creator  = creator_id
         self.messages = []
         self.m_id_ctr = 1
-        self.msgs_map = {}
+        self.msgs_map = {} if not mmap else mmap
         self.lock     = RWLock()
     
     '''
@@ -98,12 +100,12 @@ def get_message_by_id(board, m_id):
     @return (False,[BOARDDNE]) if such a board exists, or (True,[]) if
     the board was successfully created
 '''
-def create_b(b_id, u_id):
+def create_b(b_id, u_id,mmap=None):
     with GLOBAL_BOARD_LOCK.w_locked():
         if get_board_by_id(b_id):
             return (False,[BOARDEXE])
             
-        boards.append(Board(b_id, u_id))
+        boards.append(Board(b_id, u_id, mmap=mmap))
         return (True,[])
    
 '''
@@ -169,7 +171,7 @@ def getnewct(b_id, u_id):
     @return (False, [BOARDDNE]) If the board specified by b_id does not exist
     @return (True, []) on success
 '''
-def post_msg(b_id, u_id, subject, msg_text):
+def post_msg(b_id, u_id, subject, msg_text,timestamp_override=None):
     with GLOBAL_BOARD_LOCK.r_locked():
         board = get_board_by_id(b_id)
         if not board: #Board does not exist
@@ -179,7 +181,8 @@ def post_msg(b_id, u_id, subject, msg_text):
             #get and autoincrement post counter
             m_id = board.next_id()
             
-            message = Message(m_id, u_id, subject, msg_text)
+            message = Message(m_id, u_id, subject, msg_text,
+                              created=timestamp_override)
             board.messages.append(message)
             return (True,[])
     
@@ -303,7 +306,98 @@ def EXECUTE_ARGS_SERVER(opcode, args):
         return create_b(args[0], args[1])
     elif opcode == "DELETE_B":
         return delete_b(args[0], args[1])
-      
+ 
+'''
+    Serializes the BBS contents to a file
+    @param file The file to write to
+    @return False on failure, True on success
+    
+    .sdb format:
+    
+    BOARD:
+    B,b_id,creator_id,json.dumps(msgs_map)
+    MESSAGE:
+    M,b_id,u_id,subject,msg,timestamp
+'''
+def serialize(file):
+    try:
+        with open(file,"w") as f:  
+            for board in boards: #first, put in all boards
+                s = ','.join(map(str,
+                    ["B",board.b_id,board.creator,
+                     json.dumps(board.msgs_map)]
+                )) + "\n"
+                f.write(s)
+            
+            for board in boards: #now, the messages
+                for msg in board.messages:
+                    s = ','.join(map(str,
+                        ["M",board.b_id,msg.creator,
+                         msg.subject,msg.text, msg.created]
+                    )) + "\n"
+                    f.write(s)
+        
+    except EnvironmentError as e:
+        print(e)
+        return False
+    return True
+ 
+'''
+    Deserializes the BBS contents from a file
+    @param file The file to read from
+    @return false on failure, True on success
+    
+    .sdb format:
+    
+    BOARD:
+    B,b_id,creator_id,json.dumps(msgs_map)
+    MESSAGE:
+    M,b_id,u_id,subject,msg,timestamp
+'''
+def deserialize(file):
+    try:
+        with open(file,"r") as f:  
+            lines = f.read().split("\n")
+            for line in lines:
+                if not line:
+                    continue #newline at end of file
+            
+                line = line.split(",")
+                
+                #identify the type of record
+                if line[0] == 'B': #board
+                    try:
+                        b_id = int(line[1])
+                        c_id = int(line[2])
+                        mmap = json.loads(line[3])
+                    except (ValueError, JSONDecodeError) as e:
+                        print(line,e)
+                        continue
+                    
+                    if not create_b(b_id,c_id,mmap=mmap):
+                        print("Could not create board.",b_id,c_id,mmap)
+                    
+                elif line[0] == 'M':
+                    try:
+                        b_id = int(line[1])
+                        c_id = int(line[2])
+                        subj = line[3]
+                        msg  = line[4]
+                        tmsp = line[5]
+                    except ValueError as e:
+                        print(line,e)
+                        continue
+                    
+                    if not post_msg(b_id,c_id,subj,msg,timestamp_override=tmsp):
+                        print("Could not insert msg.",b_id,c_id,
+                              subj,msg,tmsp)
+                else:
+                    print("Header Error:",line,"-->",line[0])
+    except EnvironmentError as e:
+        print(e)
+        return False
+    return True
+
 '''
     Execute the operation from the client's context
     @param opcode The opcode to execute
